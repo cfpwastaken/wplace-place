@@ -17,20 +17,20 @@ const Y_OFFSET = 1000 - 10;
 
 const CHAR_HEIGHT = 7;
 const GAP = 1;
-const FONT_ORDER = "#1234567890R/PLACE:% .";
+const FONT_ORDER = "#¹²³⁴⁵⁶⁷⁸⁹⁰R/PLACE:% .1234567890";
 
 const CHAR_WIDTHS: { [key: string]: number } = {
   "#": 6,
-  "1": 3,
-  "2": 5,
-  "3": 4,
-  "4": 6,
-  "5": 4,
-  "6": 5,
-  "7": 4,
-  "8": 5,
-  "9": 5,
-  "0": 5,
+  "¹": 3,
+  "²": 5,
+  "³": 4,
+  "⁴": 6,
+  "⁵": 4,
+  "⁶": 5,
+  "⁷": 4,
+  "⁸": 5,
+  "⁹": 5,
+  "⁰": 5,
 	"R": 5,
 	"/": 4,
 	"P": 5,
@@ -42,6 +42,16 @@ const CHAR_WIDTHS: { [key: string]: number } = {
 	"%": 6,
 	" ": 2,
 	".": 2,
+	"1": 4,
+	"2": 4,
+	"3": 4,
+	"4": 4,
+	"5": 4,
+	"6": 4,
+	"7": 4,
+	"8": 4,
+	"9": 4,
+	"0": 4,
 };
 
 const URL = "https://cfp.is-a.dev/wplace/files/s0/tiles/X/Y.png?blending=out&tag=WPLACEPLACE";
@@ -158,7 +168,7 @@ const WHITE: Color = [255, 255, 255, 255];
 const BLACK: Color = [0, 0, 0, 255];
 
 async function drawProgressOnImage(png: PNG, percentage: number) {
-	const text = `R/PLACE 2023: ${percentage.toFixed(2)}%`;
+	const text = `R/PLACE ²⁰²³: ${percentage.toFixed(2)}%`;
 	const fontImg = await loadPNG("font.png");
 	const textWidth = calculateTextWidth(text);
 
@@ -216,3 +226,5 @@ async function run() {
 setInterval(() => {
 	run();
 }, 1000 * 60 * 60); // Run every hour
+
+run(); // Initial run
