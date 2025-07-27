@@ -168,7 +168,7 @@ const WHITE: Color = [255, 255, 255, 255];
 const BLACK: Color = [0, 0, 0, 255];
 
 async function drawProgressOnImage(png: PNG, percentage: number) {
-	const text = `R/PLACE ²⁰²³: ${percentage.toFixed(2)}%`;
+	const text = `R/PLACE ²⁰²³: ${percentage.toFixed(1)}%`;
 	const fontImg = await loadPNG("font.png");
 	const textWidth = calculateTextWidth(text);
 
