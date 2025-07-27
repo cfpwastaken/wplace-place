@@ -215,7 +215,7 @@ async function run() {
 	await simpleGit("wplace-overlay").addConfig("user.email", "wplace@example.com");
 	await simpleGit("wplace-overlay").add("./src/tiles/1088/651_orig.png");
 	await simpleGit("wplace-overlay").add("./src/tiles/1088/651.png");
-	await simpleGit("wplace-overlay").commit("tiles(hallofshame): update place 2023 progress");
+	await simpleGit("wplace-overlay").commit("tiles(place2023): update place 2023 progress");
 	console.log("Pushing changes to repository...");
 	await simpleGit("wplace-overlay").push("origin", "main");
 	
