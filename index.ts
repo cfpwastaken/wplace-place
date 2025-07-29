@@ -12,9 +12,6 @@ const TILES: `${number}/${number}`[] = [
 	"1090/653",
 ];
 
-const X_OFFSET = 2;
-const Y_OFFSET = 1000 - 10;
-
 const CHAR_HEIGHT = 7;
 const GAP = 1;
 const FONT_ORDER = "#¹²³⁴⁵⁶⁷⁸⁹⁰R/PLACE:% .1234567890";
@@ -167,22 +164,28 @@ function runCommand(cmd: string, args: string[] = [], options: any = {}) {
 const WHITE: Color = [255, 255, 255, 255];
 const BLACK: Color = [0, 0, 0, 255];
 
-async function drawProgressOnImage(png: PNG, percentage: number) {
+async function drawProgressOnImage(percentage: number) {
 	const text = `R/PLACE ²⁰²³: ${percentage.toFixed(1)}%`;
 	const fontImg = await loadPNG("font.png");
 	const textWidth = calculateTextWidth(text);
+	const png = new PNG({
+		width: textWidth + 4, // 2px padding on each side
+		height: CHAR_HEIGHT + 4, // 2px padding on each side
+	});
 
 	// Draw a background rectangle (WHITE with BLACK border), 2px padding on each side
 	const padding = 2;
-	const rectX = X_OFFSET - padding;
-	const rectY = Y_OFFSET - padding;
+	const rectX = padding;
+	const rectY = padding;
 	const rectWidth = textWidth + padding * 2;
 	const rectHeight = CHAR_HEIGHT + padding * 2;
 	drawRect(png, rectX, rectY, rectWidth, rectHeight, BLACK);
 	drawRect(png, rectX + 1, rectY + 1, rectWidth - 2, rectHeight - 2, WHITE);
 
 	// Render the text onto the image
-	await renderTextOntoImage(text, fontImg, png, X_OFFSET, Y_OFFSET, padding);
+	await renderTextOntoImage(text, fontImg, png, 0, 0, padding);
+
+	return png;
 }
 
 async function run() {
@@ -195,32 +198,58 @@ async function run() {
 	console.log(`Transparent pixels: ${transparentPixels}`);
 	console.log(`Percentage of transparent pixels: ${percentage}%`);
 	
-	console.log("Cloning wplace-overlay repository...");
-	await simpleGit().clone("git+ssh://git@github.com/cfpwastaken/wplace-overlay.git", "wplace-overlay", ["--depth=1"]);
-	console.log("Rendering image onto canvas...");
-	const PIC_PATH = "wplace-overlay/tiles/1088/651_orig.png";
-	const pic = await loadPNG(PIC_PATH);
-	await drawProgressOnImage(pic, percentage);
-	console.log("Saving final image...");
-	await new Promise<void>((resolve) => {
-		pic.pack().pipe(createWriteStream(PIC_PATH)).on("finish", resolve);
+	// console.log("Cloning wplace-overlay repository...");
+	// await simpleGit().clone("git+ssh://git@github.com/cfpwastaken/wplace-overlay.git", "wplace-overlay", ["--depth=1"]);
+	// console.log("Rendering image onto canvas...");
+	// const PIC_PATH = "wplace-overlay/tiles/1088/651_orig.png";
+	// const pic = await loadPNG(PIC_PATH);
+	// await drawProgressOnImage(pic, percentage);
+	// console.log("Saving final image...");
+	// await new Promise<void>((resolve) => {
+	// 	pic.pack().pipe(createWriteStream(PIC_PATH)).on("finish", resolve);
+	// });
+	
+	// console.log("Generating overlay...");
+	// await runCommand("python3", ["border.py", "1088/651"], { cwd: "wplace-overlay/tiles" });
+	
+	// console.log("Committing changes...");
+	// // Set commit author for the overlay repository
+	// await simpleGit("wplace-overlay").addConfig("user.name", "Wplace DE Bot");
+	// await simpleGit("wplace-overlay").addConfig("user.email", "wplace@example.com");
+	// await simpleGit("wplace-overlay").add("./tiles/1088/651_orig.png");
+	// await simpleGit("wplace-overlay").add("./tiles/1088/651.png");
+	// await simpleGit("wplace-overlay").commit("tiles(place2023): update place 2023 progress");
+	// console.log("Pushing changes to repository...");
+	// await simpleGit("wplace-overlay").push("origin", "main");
+	
+	// console.log("Deletion of temporary files...");
+	// rmSync("wplace-overlay", { recursive: true, force: true });
+
+	const progressImage = await drawProgressOnImage(percentage);
+	const API_KEY = process.env.API_KEY;
+	if (!API_KEY) {
+		console.error("API_KEY is not set. Please set the API_KEY environment variable.");
+		return;
+	}
+	const body = new FormData();
+	const buffer = PNG.sync.write(progressImage);
+	body.append("file", new Blob([buffer]));
+	body.append("slug", "place2023-progress")
+	const res = await fetch(`https://cfp.is-a.dev/wplace/api/replaceImage`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "multipart/form-data",
+			"Authorization": `Bearer ${API_KEY}`,
+		},
+		body
 	});
-	
-	console.log("Generating overlay...");
-	await runCommand("python3", ["border.py", "1088/651"], { cwd: "wplace-overlay/tiles" });
-	
-	console.log("Committing changes...");
-	// Set commit author for the overlay repository
-	await simpleGit("wplace-overlay").addConfig("user.name", "Wplace DE Bot");
-	await simpleGit("wplace-overlay").addConfig("user.email", "wplace@example.com");
-	await simpleGit("wplace-overlay").add("./tiles/1088/651_orig.png");
-	await simpleGit("wplace-overlay").add("./tiles/1088/651.png");
-	await simpleGit("wplace-overlay").commit("tiles(place2023): update place 2023 progress");
-	console.log("Pushing changes to repository...");
-	await simpleGit("wplace-overlay").push("origin", "main");
-	
-	console.log("Deletion of temporary files...");
-	rmSync("wplace-overlay", { recursive: true, force: true });
+	if(res.ok) {
+		console.log("Progress image uploaded successfully.");
+	} else {
+		console.error("Failed to upload progress image:", res.statusText);
+		const text = await res.text();
+		console.error("Response body:", text);
+	}
 }
 
 setInterval(() => {
