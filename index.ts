@@ -175,15 +175,13 @@ async function drawProgressOnImage(percentage: number) {
 
 	// Draw a background rectangle (WHITE with BLACK border), 2px padding on each side
 	const padding = 2;
-	const rectX = padding;
-	const rectY = padding;
 	const rectWidth = textWidth + padding * 2;
 	const rectHeight = CHAR_HEIGHT + padding * 2;
-	drawRect(png, rectX, rectY, rectWidth, rectHeight, BLACK);
-	drawRect(png, rectX + 1, rectY + 1, rectWidth - 2, rectHeight - 2, WHITE);
+	drawRect(png, 0, 0, rectWidth, rectHeight, BLACK);
+	drawRect(png, 1, 1, rectWidth - 2, rectHeight - 2, WHITE);
 
 	// Render the text onto the image
-	await renderTextOntoImage(text, fontImg, png, 0, 0, padding);
+	await renderTextOntoImage(text, fontImg, png, padding, padding, padding);
 
 	return png;
 }
@@ -233,12 +231,11 @@ async function run() {
 	}
 	const body = new FormData();
 	const buffer = PNG.sync.write(progressImage);
-	body.append("file", new Blob([buffer]));
-	body.append("slug", "place2023-progress")
+	body.append("file", new Blob([buffer]), "progress.png");
+	body.append("slug", "place2023-progress");
 	const res = await fetch(`https://cfp.is-a.dev/wplace/api/replaceImage`, {
 		method: "POST",
 		headers: {
-			"Content-Type": "multipart/form-data",
 			"Authorization": `Bearer ${API_KEY}`,
 		},
 		body
