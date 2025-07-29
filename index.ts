@@ -198,7 +198,7 @@ async function run() {
 	console.log("Cloning wplace-overlay repository...");
 	await simpleGit().clone("git+ssh://git@github.com/cfpwastaken/wplace-overlay.git", "wplace-overlay", ["--depth=1"]);
 	console.log("Rendering image onto canvas...");
-	const PIC_PATH = "wplace-overlay/src/tiles/1088/651_orig.png";
+	const PIC_PATH = "wplace-overlay/tiles/1088/651_orig.png";
 	const pic = await loadPNG(PIC_PATH);
 	await drawProgressOnImage(pic, percentage);
 	console.log("Saving final image...");
@@ -207,14 +207,14 @@ async function run() {
 	});
 	
 	console.log("Generating overlay...");
-	await runCommand("python3", ["border.py", "1088/651"], { cwd: "wplace-overlay/src/tiles" });
+	await runCommand("python3", ["border.py", "1088/651"], { cwd: "wplace-overlay/tiles" });
 	
 	console.log("Committing changes...");
 	// Set commit author for the overlay repository
 	await simpleGit("wplace-overlay").addConfig("user.name", "Wplace DE Bot");
 	await simpleGit("wplace-overlay").addConfig("user.email", "wplace@example.com");
-	await simpleGit("wplace-overlay").add("./src/tiles/1088/651_orig.png");
-	await simpleGit("wplace-overlay").add("./src/tiles/1088/651.png");
+	await simpleGit("wplace-overlay").add("./tiles/1088/651_orig.png");
+	await simpleGit("wplace-overlay").add("./tiles/1088/651.png");
 	await simpleGit("wplace-overlay").commit("tiles(place2023): update place 2023 progress");
 	console.log("Pushing changes to repository...");
 	await simpleGit("wplace-overlay").push("origin", "main");
