@@ -51,26 +51,38 @@ const CHAR_WIDTHS: { [key: string]: number } = {
 	"0": 4,
 };
 
-const URL = "https://cfp.is-a.dev/wplace/files/s0/tiles/X/Y.png?blending=out&tag=WPLACEPLACE";
+const URL = "https://backend.wplace.live/files/s0/tiles/X/Y.png";
+const OVERLAY_URL = "https://cfp.is-a.dev/wplace/tiles/X/Y_orig.png?tag=WPLACEPLACE";
 
 // Fetch all tile URLs, count how many transparent pixels are in each tile, and return the results.
 async function processTile(tile: `${number}/${number}`): Promise<{ total: number; done: number }> {
 	const url = URL.replace("X", tile.split("/")[0]!).replace("Y", tile.split("/")[1]!);
+	const ovl_url = OVERLAY_URL.replace("X", tile.split("/")[0]!).replace("Y", tile.split("/")[1]!);
 	const response = await fetch(url);
+	const ovl_response = await fetch(ovl_url);
 	const buffer = await response.arrayBuffer();
+	const ovl_buffer = await ovl_response.arrayBuffer();
 	const png = PNG.sync.read(Buffer.from(buffer));
+	const ovl_png = PNG.sync.read(Buffer.from(ovl_buffer));
 
 	let total = 0;
-	let transparentPixels = 0;
+	let donePixels = 0;
 	for (let i = 0; i < png.data.length; i += 4) {
 		total++;
-		if (png.data[i + 3] === 0) {
-			transparentPixels++;
+		// if (png.data[i + 3] === 0) {
+		// 	donePixels++;
+		// }
+		// Check if the same pixel in the overlay is the same color as this one
+		if (png.data[i] === ovl_png.data[i] &&
+			png.data[i + 1] === ovl_png.data[i + 1] &&
+			png.data[i + 2] === ovl_png.data[i + 2] &&
+			png.data[i + 3] === ovl_png.data[i + 3]) {
+			donePixels++;
 		}
 	}
 	return {
 		total,
-		done: transparentPixels
+		done: donePixels
 	};
 }
 
@@ -165,7 +177,8 @@ const WHITE: Color = [255, 255, 255, 255];
 const BLACK: Color = [0, 0, 0, 255];
 
 async function drawProgressOnImage(percentage: number) {
-	const text = `R/PLACE ²⁰²³: ${percentage.toFixed(1)}%`;
+	const floored = Math.floor(percentage * 10) / 10;
+	const text = `R/PLACE ²⁰²³: ${floored.toFixed(1)}%`;
 	const fontImg = await loadPNG("font.png");
 	const textWidth = calculateTextWidth(text);
 	const png = new PNG({
@@ -186,6 +199,18 @@ async function drawProgressOnImage(percentage: number) {
 	return png;
 }
 
+async function addProgressToCSV(percentage: number) {
+	const date = new Date().toISOString();
+	const line = `${date},${percentage}\n`;
+	await new Promise<void>((resolve, reject) => {
+		const stream = createWriteStream("progress.csv", { flags: "a" });
+		stream.write(line, (err) => {
+			if (err) reject(err);
+			else resolve();
+		});
+	});
+}
+
 async function run() {
 	const results = await Promise.all(TILES.map(tile => processTile(tile)));
 	const totalPixels = results.reduce((sum, result) => sum + result.total, 0);
@@ -195,6 +220,8 @@ async function run() {
 	console.log(`Total pixels: ${totalPixels}`);
 	console.log(`Transparent pixels: ${transparentPixels}`);
 	console.log(`Percentage of transparent pixels: ${percentage}%`);
+
+	await addProgressToCSV(percentage);
 	
 	// console.log("Cloning wplace-overlay repository...");
 	// await simpleGit().clone("git+ssh://git@github.com/cfpwastaken/wplace-overlay.git", "wplace-overlay", ["--depth=1"]);
