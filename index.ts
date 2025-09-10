@@ -2,19 +2,90 @@ import { PNG } from "pngjs";
 import { createReadStream, createWriteStream, rmSync } from "fs";
 import simpleGit from "simple-git";
 import { spawn } from "child_process";
+import { CronJob } from "cron";
 
 const TILES: `${number}/${number}`[] = [
-	"1088/652",
-	"1088/653",
-	"1089/652",
-	"1089/653",
-	"1090/652",
-	"1090/653",
+	"1068/648",
+	"1068/649",
+	"1068/650",
+
+	"1069/648",
+	"1069/649",
+	"1069/650",
+
+	"1070/648",
+	"1070/649",
+	"1070/650",
 ];
+
+const BASE_X = 294;
+const BASE_Y = 591;
+
+const crop = [
+	{ // 1068/648, top-left
+		x: BASE_X,
+		y: BASE_Y,
+		w: 1000 - BASE_X,
+		h: 1000 - BASE_Y
+	},
+	{ // 1068/649, middle-left
+		x: BASE_X,
+		y: 0,
+		w: 1000 - BASE_X,
+		h: 1000
+	},
+	{ // 1068/650, bottom-left
+		x: BASE_X,
+		y: 0,
+		w: 1000 - BASE_X,
+		h: BASE_Y
+	},
+
+	{ // 1069/648, top-middle
+		x: 0,
+		y: BASE_Y,
+		w: 1000,
+		h: 1000 - BASE_Y
+	},
+	{ // 1069/649, middle-middle
+		x: 0,
+		y: 0,
+		w: 1000,
+		h: 1000
+	},
+	{ // 1069/650, bottom-middle
+		x: 0,
+		y: 0,
+		w: 1000,
+		h: BASE_Y
+	},
+
+	{ // 1070/648, top-right
+		x: 0,
+		y: BASE_Y,
+		w: BASE_X,
+		h: 1000 - BASE_Y
+	},
+	{ // 1070/649, middle-right
+		x: 0,
+		y: 0,
+		w: BASE_X,
+		h: 1000
+	},
+	{ // 1070/650, bottom-right
+		x: 0,
+		y: 0,
+		w: BASE_X,
+		h: BASE_Y
+	}
+]
+
+const TOTAL_PIXELS = crop.reduce((sum, area) => sum + area.w * area.h, 0);
+console.log("Total pixels in crop areas:", TOTAL_PIXELS);
 
 const CHAR_HEIGHT = 7;
 const GAP = 1;
-const FONT_ORDER = "#¹²³⁴⁵⁶⁷⁸⁹⁰R/PLACE:% .1234567890";
+const FONT_ORDER = "#¹²³⁴⁵⁶⁷⁸⁹⁰R/PLACE:% .1234567890!?=";
 
 const CHAR_WIDTHS: { [key: string]: number } = {
   "#": 6,
@@ -36,9 +107,9 @@ const CHAR_WIDTHS: { [key: string]: number } = {
 	"C": 4,
 	"E": 4,
 	":": 2,
-	"%": 6,
+	"%": 5,
 	" ": 2,
-	".": 2,
+	".": 1,
 	"1": 4,
 	"2": 4,
 	"3": 4,
@@ -49,6 +120,9 @@ const CHAR_WIDTHS: { [key: string]: number } = {
 	"8": 4,
 	"9": 4,
 	"0": 4,
+	"!": 1, // Off 7-segment one
+	"?": 1, // On 7-segment one,
+	"=": 4, // Off 7-segment zero
 };
 
 const URL = "https://backend.wplace.live/files/s0/tiles/X/Y.png";
@@ -58,16 +132,31 @@ const OVERLAY_URL = "https://cfp.is-a.dev/wplace/tiles/X/Y_orig.png?tag=WPLACEPL
 async function processTile(tile: `${number}/${number}`): Promise<{ total: number; done: number }> {
 	const url = URL.replace("X", tile.split("/")[0]!).replace("Y", tile.split("/")[1]!);
 	const ovl_url = OVERLAY_URL.replace("X", tile.split("/")[0]!).replace("Y", tile.split("/")[1]!);
+	console.log("[DEBUG] Fetching tile:", url);
 	const response = await fetch(url);
 	const ovl_response = await fetch(ovl_url);
 	const buffer = await response.arrayBuffer();
 	const ovl_buffer = await ovl_response.arrayBuffer();
 	const png = PNG.sync.read(Buffer.from(buffer));
 	const ovl_png = PNG.sync.read(Buffer.from(ovl_buffer));
+	console.log("[DEBUG] Processing tile:", tile, `(${png.width}x${png.height})`);
 
 	let total = 0;
 	let donePixels = 0;
 	for (let i = 0; i < png.data.length; i += 4) {
+		const x = (i / 4) % png.width;
+		const y = Math.floor((i / 4) / png.width);
+		// Check if the pixel is within the crop area
+		const [tileX, tileY] = tile.split("/").map(Number);
+		const cropArea = crop[TILES.indexOf(tile)];
+		if(!cropArea) {
+			console.warn(`No crop area defined for tile ${tile}, skipping tile.`);
+			continue;
+		}
+		if (x < cropArea.x || x >= cropArea.x + cropArea.w || y < cropArea.y || y >= cropArea.y + cropArea.h) {
+			continue; // Skip pixels outside the crop area
+		}
+
 		total++;
 		// if (png.data[i + 3] === 0) {
 		// 	donePixels++;
@@ -176,25 +265,33 @@ function runCommand(cmd: string, args: string[] = [], options: any = {}) {
 const WHITE: Color = [255, 255, 255, 255];
 const BLACK: Color = [0, 0, 0, 255];
 
+function formatProgressString(percentage: string): string {
+	// 0xx.x% => !xx.x%
+	// 1xx.x% => ?xx.x%
+	if (percentage.startsWith("1")) {
+		return "?" + percentage.slice(1);
+	}
+	percentage = "!" + percentage.slice(1);
+	// !0x.x% => !=x.x%
+	// !00.x% => !=0.x%
+	if (percentage[1] === "0") {
+		percentage = "!=" + percentage.slice(2);
+	}
+	return percentage;
+}
+
 async function drawProgressOnImage(percentage: number) {
 	const floored = Math.floor(percentage * 10) / 10;
-	const text = `R/PLACE ²⁰²³: ${floored.toFixed(1)}%`;
+	const text = `${formatProgressString(floored.toFixed(1).padStart(5, "0"))}%`;
 	const fontImg = await loadPNG("font.png");
 	const textWidth = calculateTextWidth(text);
 	const png = new PNG({
-		width: textWidth + 4, // 2px padding on each side
-		height: CHAR_HEIGHT + 4, // 2px padding on each side
+		width: textWidth,
+		height: CHAR_HEIGHT,
 	});
 
-	// Draw a background rectangle (WHITE with BLACK border), 2px padding on each side
-	const padding = 2;
-	const rectWidth = textWidth + padding * 2;
-	const rectHeight = CHAR_HEIGHT + padding * 2;
-	drawRect(png, 0, 0, rectWidth, rectHeight, BLACK);
-	drawRect(png, 1, 1, rectWidth - 2, rectHeight - 2, WHITE);
-
 	// Render the text onto the image
-	await renderTextOntoImage(text, fontImg, png, padding, padding, padding);
+	await renderTextOntoImage(text, fontImg, png, 0, 0, 2);
 
 	return png;
 }
@@ -259,7 +356,8 @@ async function run() {
 	const body = new FormData();
 	const buffer = PNG.sync.write(progressImage);
 	body.append("file", new Blob([buffer]), "progress.png");
-	body.append("slug", "place2023-progress");
+	body.append("slug", "place2022-progress");
+	console.log("Uploading progress image...");
 	const res = await fetch(`https://cfp.is-a.dev/wplace/api/replaceImage`, {
 		method: "POST",
 		headers: {
@@ -276,8 +374,11 @@ async function run() {
 	}
 }
 
-setInterval(() => {
-	run();
-}, 1000 * 60 * 60); // Run every hour
+// setInterval(() => {
+// 	run();
+// }, 1000 * 60* 5); // Run every minute
 
+// run(); // Initial run
+
+const job = new CronJob("0 * * * *", run, null, true, "Europe/Berlin"); // Runs at the start of every hour
 run(); // Initial run
